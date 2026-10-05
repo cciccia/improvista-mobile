@@ -138,9 +138,11 @@ Bundled in `assets/songs/`:
 
 ## Soundfonts
 
-Current soundfonts in `assets/` (referenced in `audio_player.dart`):
-- `FluidR3_GM.sf2` - Melodic (piano, bass) - MIT license
-- `acoustickits 3&4.sf2` - Drums - CC BY (attribution required)
+`assets/fluidr3_trio.sf2` (20 MB) is a subset of FluidR3_GM (MIT, notice in `assets/LICENSE-FluidR3.txt`, registered with `LicenseRegistry` in `main.dart`) holding only:
+- 0:0 Yamaha Grand Piano, 0:32 Acoustic Bass, 128:40 Brush kit (drums)
+
+The full 148 MB FluidR3_GM.sf2 lives in the gitignored `../soundfont-originals/`. To use another preset, re-trim from it — trying a kit by `drumKit` number only works for kits that are in the subset.
+The old E-mu `acoustickits 3&4.sf2` was dropped: it carries no redistribution license.
 
 ## Common Issues
 

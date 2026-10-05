@@ -19,14 +19,15 @@ class AudioPlayer {
   List<int> _currentPianoNotes = [];
 
   Future<void> initialize() async {
-    const String melodicFont = 'assets/FluidR3_GM.sf2';
-    const String drumFont = 'assets/acoustickits 3&4.sf2';
+    const String melodicFont = 'assets/fluidr3_trio.sf2';
+    // Brush kit; the only drum kit kept in the trimmed font (see CLAUDE.md > Soundfonts)
+    const int drumKit = 40;
 
     print('[AudioPlayer] Loading soundfonts...');
     try {
       _bassSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 0, program: 32);
       _pianoSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 0, program: 0);
-      _drumsSfId = await _midi.loadSoundfontAsset(assetPath: drumFont, bank: 0, program: 0);
+      _drumsSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 128, program: drumKit);
       print('[AudioPlayer] All soundfonts loaded successfully!');
     } catch (e) {
       print('[AudioPlayer] ERROR loading soundfonts: $e');
