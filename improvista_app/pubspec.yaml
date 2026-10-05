@@ -1,0 +1,26 @@
+name: improvista_app
+description: Jazz rhythm section accompaniment from ChordPro chord charts.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  file_picker: ^10.3.3
+  flutter_midi_pro: ^3.1.4
+  tonic: ^0.2.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+    - assets/songs/
