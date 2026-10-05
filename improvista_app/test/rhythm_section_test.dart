@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:improvista_app/services/chord_parser.dart';
 import 'package:improvista_app/services/drum_patterns.dart';
 import 'package:improvista_app/services/music_generator.dart';
+import 'package:improvista_app/services/piano_patterns.dart';
 import 'package:improvista_app/utils/chord_utils.dart';
-import 'package:tonic/tonic.dart' as tonic;
 
 void main() {
   test('default duration rules', () {
@@ -33,11 +33,87 @@ void main() {
     }
   });
 
-  test('every chord in the bundled songs is understood by tonic', () {
+  test('every chord in the bundled songs is in the chord table', () {
     for (final file in Directory('assets/songs').listSync().whereType<File>()) {
       for (final chord in parseChordPro(file.readAsStringSync()).chords) {
-        expect(() => tonic.Chord.parse(normalizeChordName(chord.name)), returnsNormally,
-            reason: '${file.path}: ${chord.name}');
+        expect(parseChord(chord.name).exact, isTrue, reason: '${file.path}: ${chord.name}');
+      }
+    }
+  });
+
+  test('chart spellings resolve to the same quality', () {
+    String key(String name) => parseChord(name).qualityKey;
+    expect(key('FΔ7+5'), 'maj7#5');
+    expect(key('FΔ7sus4'), 'maj7sus4');
+    expect(key('AΔ7♯11'), 'maj7#11');
+    expect(key('FMaj6'), '6');
+    expect(key('FΔ'), 'maj7');
+    expect(key('CM7'), 'maj7');
+    expect(key('C-7'), 'm7');
+    expect(key('Bbø'), 'm7b5');
+    expect(key('Co7'), 'dim7');
+    expect(key('C7(b9)'), '7b9');
+    expect(key('C7+'), '7#5');
+    expect(key('C6/9'), '69');
+    expect(key('Cm(maj7)'), 'mmaj7');
+    expect(key('Cmadd9'), 'madd9');
+    expect(parseChord('Gm11/F').bassPc, 5);
+    expect(parseChord('Bb').rootPc, 10);
+  });
+
+  test('unknown qualities fall back to the longest known prefix', () {
+    final chord = parseChord('C7b9#13');
+    expect([chord.qualityKey, chord.exact], ['7b9', false]);
+    expect(() => parseChord('H7'), throwsFormatException);
+  });
+
+  // Pitch classes the piano plays on the first comp hit of a one-chord song.
+  Set<int> voicing(String chord, {String style = 'Medium Swing'}) {
+    final piano = generatePianoTrack(parseChordPro('{style: $style}\n| [$chord] |'));
+    return piano.firstWhere((s) => s.isNotEmpty).map((n) => n % 12).toSet();
+  }
+
+  test('piano voicings keep the alterations', () {
+    expect(voicing('FΔ7+5'), {9, 1, 4, 7}); // A C# E G
+    expect(voicing('AΔ7#11'), {1, 8, 11, 3}); // C# G# B D#
+    expect(voicing('FΔ7sus4'), {10, 4, 7, 0}); // Bb E G C
+    expect(voicing('C7alt'), {4, 10, 3, 8}); // E Bb D# Ab
+    expect(voicing('Gm11/F'), {10, 5, 9, 0}); // Bb F A C over F in the bass
+    expect(voicing('C7alt', style: 'Ballad'), {4, 10, 3, 8, 1, 6}); // + Db F#
+  });
+
+  test('bass plays the altered fifth and the slash note', () {
+    final song = parseChordPro('{style: Bossa Nova}\n| [Fmaj7#5] |');
+    final fifths = generateRhythmSection(song).bass.where((n) => n > 0).map((n) => n % 12);
+    expect(fifths, isNot(contains(0)), reason: 'no natural C under F+');
+    expect(generateRhythmSection(parseChordPro('| [Gm11/F] |')).bass.first % 12, 5);
+  });
+
+  test('no minor 9ths between voices unless the chord asks for one', () {
+    const chart = '| [Cm7] | [F7] | [Bbmaj7] | [Ebm11] | [Dbmaj7#11] | [Gm7b5] | [Fm6] | [Bb13sus] | [Cmaj7#5] |';
+    for (final style in ['Medium Swing', 'Ballad']) {
+      for (final transpose in ['C', 'Bb', 'Eb']) {
+        final piano = generatePianoTrack(parseChordPro('{style: $style}{transpose: $transpose}\n${chart * 4}'));
+        for (final notes in piano.where((s) => s.isNotEmpty)) {
+          for (final a in notes) {
+            for (final b in notes) {
+              expect(b - a > 12 && (b - a) % 12 == 1, isFalse, reason: '$style $transpose $notes');
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test('voicings stay in the comping register', () {
+    const chart = '| [Cmaj7] | [Ebm11] | [Ab7alt] | [Dbmaj7#11] | [Gm7b5] | [C7b9] | [Fm6] | [Bb13sus] |';
+    for (final style in ['Medium Swing', 'Ballad']) {
+      for (final transpose in ['C', 'Bb', 'Eb']) {
+        final piano = generatePianoTrack(parseChordPro('{style: $style}{transpose: $transpose}\n${chart * 8}'));
+        for (final notes in piano.where((s) => s.isNotEmpty)) {
+          expect(notes.reduce((a, b) => a < b ? a : b), inInclusiveRange(pianoLowestNote, pianoLowestNote + 11),
+              reason: '$style $transpose $notes');
+        }
       }
     }
   });

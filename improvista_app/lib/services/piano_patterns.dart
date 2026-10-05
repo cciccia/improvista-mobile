@@ -1,82 +1,75 @@
 // lib/services/piano_patterns.dart
-import 'package:tonic/tonic.dart' as tonic;
 import '../models/chord.dart';
 import '../models/song.dart';
 import '../utils/chord_utils.dart';
 import 'dart:math';
 
-/// Calculates the melodic "distance" between two voicings.
-int _calculateVoicingDistance(List<int> voicing1, List<int> voicing2) {
-  if (voicing1.isEmpty || voicing2.isEmpty || voicing1.length != voicing2.length) {
-    return 9999;
-  }
-  int distance = 0;
-  for (var i = 0; i < voicing1.length; i++) {
-    distance += (voicing1[i] - voicing2[i]).abs();
-  }
-  return distance;
+/// Lowest note of every voicing lands in [pianoLowestNote, pianoLowestNote + 12):
+/// C4 to B4. D3 (50) was too muddy against the bass; the pre-table code sat around E5.
+const int pianoLowestNote = 60;
+
+/// Notes per voicing. Ballads get fuller two-handed voicings; everything else
+/// comps light with four.
+const Map<String, int> _voicingSize = {'Ballad': 6, 'Fusion Ballad': 6, 'Rock Ballad': 6};
+
+/// How far the hands move between voicings: every note's distance to the
+/// nearest note of the other voicing, both ways. Works for any note counts.
+int _voicingDistance(List<int> a, List<int> b) {
+  int nearest(int n, List<int> other) => other.map((o) => (n - o).abs()).reduce(min);
+  return a.fold(0, (s, n) => s + nearest(n, b)) + b.fold(0, (s, n) => s + nearest(n, a));
 }
 
-/// Finds the best voicing for the current chord based on the previous one.
-List<int> _findBestVoicing(tonic.Chord currentChord, List<int> previousVoicing) {
-  const int pianoOctave = 2;
-  
-  // 1. Get the core pitches for our new voicing (3, 5, 7, 9)
-  final corePitches = [
-    getThird(currentChord),
-    getFifth(currentChord),
-    getSeventh(currentChord),
-    getNinth(currentChord),
-  ];
-
-  // 2. Build a proper root position voicing in MIDI notes, handling octave rollovers
-  List<int> rootPositionVoicing = [];
-  int lastMidiNote = 0;
-  for (final pitch in corePitches) {
-    int midiNote = 12 * (pianoOctave + 1) + pitch.semitones;
-    // If the next note is lower, it should be in the next octave up
-    if (rootPositionVoicing.isNotEmpty && midiNote < lastMidiNote) {
-      midiNote += 12;
-    }
-    rootPositionVoicing.add(midiNote);
-    lastMidiNote = midiNote;
+/// Appends each pitch class as the next note above the last one.
+List<int> _stackAbove(List<int> notes, List<int> pitchClasses) {
+  final out = [...notes];
+  for (final pc in pitchClasses) {
+    var n = out.isEmpty ? pc : out.last + 1;
+    while (n % 12 != pc) n++;
+    out.add(n);
   }
+  return out;
+}
 
-  // 3. Generate musically correct inversions
-  List<List<int>> allInversions = [rootPositionVoicing];
-  List<int> currentInversion = List.from(rootPositionVoicing);
-  for (var i = 0; i < corePitches.length - 1; i++) {
-    // Take the bottom note, add an octave, and move it to the top
-    int bottomNote = currentInversion.removeAt(0);
-    currentInversion.add(bottomNote + 12);
-    allInversions.add(List.from(currentInversion));
+/// A minor 9th between any two voices: the classic wrong-note crunch.
+bool _hasMinorNinth(List<int> v) => [
+      for (final a in v)
+        for (final b in v) b - a > 12 && (b - a) % 12 == 1
+    ].any((x) => x);
+
+List<List<int>> _rotations(List<int> xs) =>
+    [for (var i = 0; i < xs.length; i++) [...xs.sublist(i), ...xs.sublist(0, i)]];
+
+/// Picks the voicing for [chord] closest to [previous]. Up to four notes are
+/// stacked close; bigger voicings put the two guide tones in the left hand and
+/// stack the colours above them.
+List<int> _findBestVoicing(ParsedChord chord, int size, int transpose, List<int> previous) {
+  final pcs = <int>[];
+  for (final interval in chord.quality.voicing) {
+    final pc = (chord.rootPc + transpose + interval) % 12;
+    if (!pcs.contains(pc)) pcs.add(pc);
   }
+  pcs.removeRange(min(size, pcs.length), pcs.length);
 
-  // 4. Generate candidates in a few nearby octaves
-  List<List<int>> candidateVoicings = [];
-  for (final inversion in allInversions) {
-    candidateVoicings.add(inversion); // The base octave
-    candidateVoicings.add(inversion.map((n) => n - 12).toList()); // Octave below
-    candidateVoicings.add(inversion.map((n) => n + 12).toList()); // Octave above
-  }
+  // Stack in pitch order above the root so inversions stay close (no stray b9s).
+  final root = (chord.rootPc + transpose) % 12;
+  List<int> byPitch(List<int> xs) => [...xs]..sort((a, b) => (a - root) % 12 - (b - root) % 12);
 
-  // 5. Find the candidate with the minimum distance to the previous voicing
-  if (previousVoicing.isEmpty) {
-    return candidateVoicings.first;
-  }
+  var candidates = pcs.length <= 4
+      ? _rotations(byPitch(pcs)).map((r) => _stackAbove([], r)).toList()
+      : [
+          for (final left in _rotations(pcs.sublist(0, 2)))
+            for (final right in _rotations(byPitch(pcs.sublist(2)))) _stackAbove(_stackAbove([], left), right)
+        ];
+  final clean = candidates.where((v) => !_hasMinorNinth(v)).toList();
+  if (clean.isNotEmpty) candidates = clean;
 
-  List<int> bestVoicing = [];
-  int minDistance = 99999;
+  final placed = candidates.map((v) {
+    final shift = pianoLowestNote + (v.first - pianoLowestNote) % 12 - v.first;
+    return v.map((n) => n + shift).toList();
+  }).toList();
 
-  for (final candidate in candidateVoicings) {
-    final distance = _calculateVoicingDistance(candidate, previousVoicing);
-    if (distance < minDistance) {
-      minDistance = distance;
-      bestVoicing = candidate;
-    }
-  }
-
-  return bestVoicing;
+  if (previous.isEmpty) return placed.first;
+  return placed.reduce((best, v) => _voicingDistance(v, previous) < _voicingDistance(best, previous) ? v : best);
 }
 
 // Comping rhythms. 1 = play, 0 = rest. 8-step patterns are 8th notes and get
@@ -118,14 +111,13 @@ List<List<int>> generatePianoTrack(Song song) {
   final random = Random();
   final transpose = song.transpose;
   final patterns = _compPatterns[song.style] ?? _compPatterns['Medium Swing']!;
+  final voicingSize = _voicingSize[song.style] ?? 4;
 
   for (final chord in song.chords) {
     final List<List<int>> chordSteps = List.generate(chord.steps, (_) => []);
     try {
-      final parsedChord = tonic.Chord.parse(normalizeChordName(chord.name));
-      final List<int> baseVoicing = _findBestVoicing(parsedChord, lastVoicing);
-      lastVoicing = baseVoicing; // Keep untransposed for voice leading
-      final List<int> midiVoicing = baseVoicing.map((n) => n + transpose).toList();
+      final midiVoicing = _findBestVoicing(parseChord(chord.name), voicingSize, transpose, lastVoicing);
+      lastVoicing = midiVoicing;
 
       final pattern = patterns[random.nextInt(patterns.length)];
       final int stepsPerSlot = (stepsPerBeat * 4) ~/ pattern.length; // 2 for 8ths, 1 for 16ths

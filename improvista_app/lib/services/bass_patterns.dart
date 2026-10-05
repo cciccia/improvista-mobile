@@ -1,6 +1,5 @@
 // lib/services/bass_patterns.dart
 import 'dart:math';
-import 'package:tonic/tonic.dart' as tonic;
 import '../models/chord.dart';
 import '../utils/chord_utils.dart';
 import '../models/song.dart';
@@ -18,40 +17,33 @@ List<int> _expandTo16(List<int> pattern8) {
   return pattern16;
 }
 
-/// Helper to convert pitch to MIDI note in bass octave
-int _pitchToMidi(tonic.Pitch pitch) => 12 * (bassOctave + 1) + pitch.semitones;
+/// MIDI note [interval] semitones above the chord root, roots in C2-B2.
+int _tone(ParsedChord chord, int interval) => 12 * (bassOctave + 4) + chord.rootPc + interval;
+int _third(ParsedChord chord) => _tone(chord, chord.quality.third);
+int _fifth(ParsedChord chord) => _tone(chord, chord.quality.fifth);
+int _seventh(ParsedChord chord) => _tone(chord, chord.quality.seventh ?? 0);
 
 /// Get chromatic approach note to target (from above or below randomly)
 int _chromaticApproach(int targetMidi) {
   return _random.nextBool() ? targetMidi - 1 : targetMidi + 1;
 }
 
-/// Get the effective bass MIDI note for a chord, considering slash bass notation.
-/// Returns the slash bass note if present, otherwise the chord root.
-int _getEffectiveBass(String chordName, tonic.Chord parsedChord) {
-  final slashBass = getSlashBassNote(chordName);
-  if (slashBass != null) {
-    final bassPitch = parseNoteName(slashBass);
-    if (bassPitch != null) {
-      return _pitchToMidi(bassPitch);
-    }
-  }
-  return _pitchToMidi(parsedChord.root);
-}
+/// The slash bass note if there is one, otherwise the root.
+int _getEffectiveBass(ParsedChord chord) => 12 * (bassOctave + 4) + chord.bassPc;
 
 /// Generates a one-measure Bossa Nova bass pattern for a given chord.
 List<int> generateBossaNovaBass({
   required Chord currentChord,
   required Chord nextChord,
 }) {
-  final parsedChord = tonic.Chord.parse(normalizeChordName(currentChord.name));
-  final rootNote = _getEffectiveBass(currentChord.name, parsedChord);
-  final fifthNote = _pitchToMidi(getFifth(parsedChord));
+  final parsedChord = parseChord(currentChord.name);
+  final rootNote = _getEffectiveBass(parsedChord);
+  final fifthNote = _fifth(parsedChord);
 
   int lastNote;
   if (currentChord.name != nextChord.name) {
-    final nextParsed = tonic.Chord.parse(normalizeChordName(nextChord.name));
-    final nextBass = _getEffectiveBass(nextChord.name, nextParsed);
+    final nextParsed = parseChord(nextChord.name);
+    final nextBass = _getEffectiveBass(nextParsed);
     lastNote = _chromaticApproach(nextBass);
   } else {
     lastNote = rootNote;
@@ -67,9 +59,9 @@ List<int> generateBossaNovaBass({
 }
 
 /// Generates a one-measure Ballad bass pattern for a given chord.
-List<int> generateBalladBass(String chordName, tonic.Chord chord) {
-  final rootNote = _getEffectiveBass(chordName, chord);
-  final fifthNote = _pitchToMidi(getFifth(chord));
+List<int> generateBalladBass(ParsedChord chord) {
+  final rootNote = _getEffectiveBass(chord);
+  final fifthNote = _fifth(chord);
 
   // Ballad patterns - sparse but melodic
   final patterns = [
@@ -81,9 +73,9 @@ List<int> generateBalladBass(String chordName, tonic.Chord chord) {
 }
 
 /// Generates a one-measure Rock Ballad bass pattern - more movement than jazz ballad.
-List<int> generateRockBalladBass(String chordName, tonic.Chord chord) {
-  final rootNote = _getEffectiveBass(chordName, chord);
-  final fifthNote = _pitchToMidi(getFifth(chord));
+List<int> generateRockBalladBass(ParsedChord chord) {
+  final rootNote = _getEffectiveBass(chord);
+  final fifthNote = _fifth(chord);
   final octaveUp = rootNote + 12;
 
   // Rock ballad patterns - steady 8th notes with root-fifth movement
@@ -102,11 +94,11 @@ List<int> generateRockBalladBass(String chordName, tonic.Chord chord) {
 
 /// Generates a one-measure Fusion bass pattern - syncopated 16th-note lines.
 /// Returns native 16-step pattern (no expansion needed).
-List<int> generateFusionBass(String chordName, tonic.Chord chord) {
-  final root = _getEffectiveBass(chordName, chord);
-  final third = _pitchToMidi(getThird(chord));
-  final fifth = _pitchToMidi(getFifth(chord));
-  final seventh = _pitchToMidi(getSeventh(chord));
+List<int> generateFusionBass(ParsedChord chord) {
+  final root = _getEffectiveBass(chord);
+  final third = _third(chord);
+  final fifth = _fifth(chord);
+  final seventh = _seventh(chord);
   final octave = root + 12;
 
   // Fusion patterns - syncopated 16th notes with ghost notes and chromatic approaches
@@ -129,9 +121,9 @@ List<int> generateFusionBass(String chordName, tonic.Chord chord) {
 /// Generates a Fusion Ballad bass pattern - very sparse, breathing room.
 /// Uses chord duration to decide density: shorter chords may get rests entirely.
 /// Returns native 16-step pattern for sub-beat chord change support.
-List<int> generateFusionBalladBass(String chordName, tonic.Chord chord, {required double duration}) {
-  final root = _getEffectiveBass(chordName, chord);
-  final fifth = _pitchToMidi(getFifth(chord));
+List<int> generateFusionBalladBass(ParsedChord chord, {required double duration}) {
+  final root = _getEffectiveBass(chord);
+  final fifth = _fifth(chord);
   final numSteps = (duration * stepsPerBeat).round();
 
   // Short chords (< 2 beats): mostly rest, occasional root
@@ -165,21 +157,20 @@ List<int> generateSwingBass({
   required Chord currentChord,
   required Chord nextChord,
 }) {
-  final normalizedName = normalizeChordName(currentChord.name);
-  final parsedChord = tonic.Chord.parse(normalizedName);
+  final parsedChord = parseChord(currentChord.name);
 
-  final root = _getEffectiveBass(currentChord.name, parsedChord);
-  final third = _pitchToMidi(getThird(parsedChord));
-  final fifth = _pitchToMidi(getFifth(parsedChord));
-  final seventh = _pitchToMidi(getSeventh(parsedChord));
+  final root = _getEffectiveBass(parsedChord);
+  final third = _third(parsedChord);
+  final fifth = _fifth(parsedChord);
+  final seventh = _seventh(parsedChord);
 
   final int numBeats = currentChord.duration.toInt();
 
   // Determine approach note to next chord
   int approachNote;
   if (currentChord.name != nextChord.name) {
-    final nextParsed = tonic.Chord.parse(normalizeChordName(nextChord.name));
-    final nextBass = _getEffectiveBass(nextChord.name, nextParsed);
+    final nextParsed = parseChord(nextChord.name);
+    final nextBass = _getEffectiveBass(nextParsed);
     approachNote = _chromaticApproach(nextBass);
   } else {
     // Approach back to own root
@@ -253,14 +244,14 @@ List<int> generateBassLine(Song song) {
     try {
       final currentChord = chords[i];
       final nextChord = chords[(i + 1) % chords.length];
-      final parsedChord = tonic.Chord.parse(normalizeChordName(currentChord.name));
+      final parsedChord = parseChord(currentChord.name);
       final numSteps = currentChord.steps;
 
       List<int> notes;
 
       // For sub-beat durations (< 1 beat), just play the root
       if (currentChord.duration < 1.0) {
-        final root = _getEffectiveBass(currentChord.name, parsedChord);
+        final root = _getEffectiveBass(parsedChord);
         notes = [root, ...List.filled(numSteps - 1, 0)];
       } else {
         switch (song.style) {
@@ -271,18 +262,18 @@ List<int> generateBassLine(Song song) {
             ));
             break;
           case 'Ballad':
-            notes = _expandTo16(generateBalladBass(currentChord.name, parsedChord));
+            notes = _expandTo16(generateBalladBass(parsedChord));
             break;
           case 'Rock Ballad':
-            notes = _expandTo16(generateRockBalladBass(currentChord.name, parsedChord));
+            notes = _expandTo16(generateRockBalladBass(parsedChord));
             break;
           case 'Fusion':
             // Fusion bass is native 16-step, no expansion needed
-            notes = generateFusionBass(currentChord.name, parsedChord);
+            notes = generateFusionBass(parsedChord);
             break;
           case 'Fusion Ballad':
             // Fusion Ballad bass is native 16-step, sparse patterns
-            notes = generateFusionBalladBass(currentChord.name, parsedChord, duration: currentChord.duration);
+            notes = generateFusionBalladBass(parsedChord, duration: currentChord.duration);
             break;
           case 'Medium Swing':
           default:

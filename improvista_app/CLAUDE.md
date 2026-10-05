@@ -30,7 +30,7 @@ lib/
 │   ├── drum_patterns.dart     # Style-specific drum patterns
 │   └── audio_player.dart      # MIDI playback via flutter_midi_pro
 └── utils/
-    └── chord_utils.dart       # Chord name normalization for tonic library
+    └── chord_utils.dart       # Chord table: quality -> bass tones + piano voicing
 ```
 
 ## ChordPro Format
@@ -66,7 +66,6 @@ Explicit duration syntax: `[ChordName:beats]`
 
 ## Key Dependencies
 
-- **tonic**: Music theory library for chord parsing. Limited chord support - see `chord_utils.dart` for normalization map
 - **flutter_midi_pro**: MIDI playback with soundfont support
 - **file_picker**: File selection on device
 
@@ -81,13 +80,17 @@ Explicit duration syntax: `[ChordName:beats]`
 
 ## Chord Parsing Notes
 
-The `tonic` library has limited chord pattern support. `chord_utils.dart` normalizes jazz chord names:
+`chord_utils.dart` holds the whole chord vocabulary in `chordQualities`. Each quality gives:
+- bass chord tones (3rd — or 4th for sus — altered 5th, 7th)
+- piano notes in priority order (guide tones, then colours); a style plays the first N
 
-- Extended chords (9, 11, 13, #9, b9) → base 7th chord
-- Alterations (7#5, 7b5, 7alt) → dom7
-- Half-diminished (m7b5, ø) → ø
-- Suspended (7sus4, sus7) → dom7 (but piano uses 4th instead of 3rd)
-- Slash chords (Cmaj7/E) → bass plays the slash note, chord plays normally
+`standardizeQuality` maps chart spellings onto table keys (Δ7+5 → maj7#5, Maj6 → 6, ø → m7b5, -7 → m7, 7(b9) → 7b9).
+An unknown quality falls back to its longest known prefix (7b9#13 → 7b9) and logs `[Chord] ...` — chords are never silent.
+To support a new quality, add it to `chordQualities`.
+
+Piano voicings are rootless (the bass has the root). Up to 4 notes stack close; Ballad / Fusion Ballad / Rock Ballad use 6,
+with the guide tones in the left hand and colours above. The lowest note always sits in C4–B4 (`pianoLowestNote`).
+Slash chords: the bass plays the slash note, the piano voices the chord.
 
 ## Style-Specific Patterns
 
@@ -147,7 +150,7 @@ The old E-mu `acoustickits 3&4.sf2` was dropped: it carries no redistribution li
 ## Common Issues
 
 - **iOS Simulator no audio**: Check simulator sound settings (Device > Sound)
-- **FormatException for chord**: Add mapping to `normalizationMap` in `chord_utils.dart`
+- **`[Chord] unknown quality` in the log**: add the quality to `chordQualities` in `chord_utils.dart`
 - **Hot reload doesn't update assets**: Full restart required for asset changes
 
 ## Future Enhancements

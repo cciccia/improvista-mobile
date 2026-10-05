@@ -13,6 +13,7 @@ import '../models/rhythm_section.dart';
 const List<Map<String, String>> sampleSongs = [
   {'name': 'Airegin', 'path': 'assets/songs/airegin.txt'},
   {'name': 'Blue Bossa', 'path': 'assets/songs/bluebossa.txt'},
+  {'name': 'Body and Soul', 'path': 'assets/songs/bodyandsoul.txt'},
 ];
 
 class HomePage extends StatefulWidget {
