@@ -1,21 +1,15 @@
 PODS:
   - Flutter (1.0.0)
-  - flutter_midi_pro (0.0.1):
-    - Flutter
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
-  - flutter_midi_pro (from `.symlinks/plugins/flutter_midi_pro/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
-  flutter_midi_pro:
-    :path: ".symlinks/plugins/flutter_midi_pro/ios"
 
 SPEC CHECKSUMS:
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
-  flutter_midi_pro: 91fdb12ab765d84d5d391bc0176a09f5f8808804
 
 PODFILE CHECKSUM: 3ba3a73b1b12adcf321a227a745625fe0888cc82
 

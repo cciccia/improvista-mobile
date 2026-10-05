@@ -11,7 +11,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   file_picker: ^10.3.3
-  flutter_midi_pro: ^3.1.4
+  flutter_midi_pro: ^4.0.4
   tonic: ^0.2.5
 
 dev_dependencies:

@@ -25,6 +25,7 @@ class AudioPlayer {
 
     print('[AudioPlayer] Loading soundfonts...');
     try {
+      if (!_midi.isInitialized) await _midi.init();
       _bassSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 0, program: 32);
       _pianoSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 0, program: 0);
       _drumsSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 128, program: drumKit);
