@@ -52,6 +52,16 @@ Songs use ChordPro format with these supported directives:
 | [Dm7:0.5] [G7:0.5] [Cmaj7:3] |   # Explicit durations in beats
 ```
 
+### Repeats and Endings
+Expanded into playing order by `expandRepeats` in `chord_parser.dart`:
+```
+|: [A] | [B] :|            # play twice
+|: [A] :| x4               # pass count: x4, 4x or (4x)
+|: [A] |1 [B] :|2 [C] ||   # 1st ending plays every pass but the last
+[A] | [B] :|               # no |: = repeat from the top (or the previous repeat)
+```
+Only two endings; D.S./D.C./Coda are not unrolled.
+
 ### Chord Duration Rules
 Default rules (when no explicit duration specified):
 - 1 chord per measure = 4 beats

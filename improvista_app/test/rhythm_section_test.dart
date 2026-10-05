@@ -23,6 +23,26 @@ void main() {
     expect(song.chords.map((c) => c.duration), [0.5, 0.5, 3, 3, 1]);
   });
 
+  test('repeats and endings unroll in playing order', () {
+    List<String> play(String chart) => parseChordPro(chart).chords.map((c) => c.name).toList();
+    expect(play('|: [A] | [B] :| [C] |'), ['A', 'B', 'A', 'B', 'C']);
+    expect(play('[A] | [B] :| [C]'), ['A', 'B', 'A', 'B', 'C'], reason: 'no |: repeats from the top');
+    expect(play('|: [A] | [B] |1 [C] :|2 [D] |'), ['A', 'B', 'C', 'A', 'B', 'D']);
+    expect(play('|: [A] |1 [B] | [C] :|2 [D] | [E] |'), ['A', 'B', 'C', 'A', 'D', 'E'], reason: 'multi-bar 1st ending');
+    expect(play('|: [A] :| x3 [B] |'), ['A', 'A', 'A', 'B']);
+    expect(play('|: [A] :| (4x) [B] |'), ['A', 'A', 'A', 'A', 'B']);
+    expect(play('|: [A] |1 [B] :| 3x |2 [C] |'), ['A', 'B', 'A', 'B', 'A', 'C'], reason: '1st ending on every pass but the last');
+    expect(play('[X] |: [A] :|: [B] :| [C] ||'), ['X', 'A', 'A', 'B', 'B', 'C']);
+    expect(play('| [Dm7:0.5] [G7:0.5] [Cmaj7:3] :|').length, 6, reason: 'durations keep their colons');
+  });
+
+  test('Body and Soul unrolls to 32 bars', () {
+    final song = parseChordPro(File('assets/songs/bodyandsoul.txt').readAsStringSync());
+    expect(song.chords.fold<double>(0, (sum, c) => sum + c.duration), 32 * 4);
+    expect(song.chords[14].name, 'Db6');
+    expect(song.chords.sublist(14, 16).map((c) => c.name), ['Db6', 'Bb7b9'], reason: '1st ending');
+  });
+
   test('every track is exactly totalSteps long for every style', () {
     const chart = '| [Dm7:0.5] [G7:0.5] [Cmaj7:3] | [Am7] [D7] | [Gmaj7] | [C/E] [F] [G] |';
     for (final style in ['Medium Swing', 'Bossa Nova', 'Ballad', 'Rock Ballad', 'Fusion', 'Fusion Ballad']) {

@@ -35,6 +35,72 @@ const Map<int, List<double>> _defaultDurations = {
   4: [1.0, 1.0, 1.0, 1.0],
 };
 
+final RegExp chordRegex = RegExp(r'\[([^\]:]+)(?::\s*([\d.]+))?\]');
+
+// Barlines: | || |: :| :|: |1 :|2, and a pass count after a closing repeat (:| x4, :| 4x, :| (4x)).
+final RegExp _barline = RegExp(r'(:?)\|(:|\d+\.?)?(?:\s*\(?\s*(?:[x×]\s*(\d+)|(\d+)\s*[x×])\s*\)?)?');
+
+class _Bar {
+  final String text;
+  final bool repeatStart;
+  final int? ending;
+  int passes = 0; // > 0 when a :| closes the repeat after this bar
+  _Bar(this.text, this.repeatStart, this.ending);
+}
+
+/// Splits chord text into bars in playing order, unrolling repeats and 1st/2nd
+/// endings. A :| with no |: goes back to the start (or the previous repeat).
+/// ponytail: two endings only; 3rd endings and D.S./coda are not unrolled.
+List<String> expandRepeats(String text) {
+  final bars = <_Bar>[];
+  var repeatStart = false;
+  int? ending;
+  var pos = 0;
+
+  void addBar(String segment) {
+    if (!chordRegex.hasMatch(segment)) return; // empty bar between || and the like
+    bars.add(_Bar(segment, repeatStart, ending));
+    repeatStart = false;
+  }
+
+  for (final m in _barline.allMatches(text)) {
+    addBar(text.substring(pos, m.start));
+    pos = m.end;
+    final closes = m.group(1) == ':';
+    final mark = m.group(2);
+    if (closes && bars.isNotEmpty) {
+      bars.last.passes = int.tryParse(m.group(3) ?? m.group(4) ?? '') ?? 2;
+      ending = null;
+    }
+    if (mark == ':') {
+      repeatStart = true;
+      ending = null;
+    } else if (mark != null) {
+      ending = int.parse(mark.replaceAll('.', ''));
+    }
+  }
+  addBar(text.substring(pos));
+
+  final out = <String>[];
+  var pending = <_Bar>[];
+  for (final bar in bars) {
+    if (bar.repeatStart) {
+      out.addAll(pending.map((b) => b.text));
+      pending = [];
+    }
+    pending.add(bar);
+    if (bar.passes > 0) {
+      for (var pass = 1; pass <= bar.passes; pass++) {
+        final last = pass == bar.passes;
+        out.addAll(pending.where((b) => !(last && b.ending == 1)).map((b) => b.text));
+      }
+      pending = [];
+    }
+  }
+  out.addAll(pending.map((b) => b.text));
+  return out;
+}
+
 Song parseChordPro(String content) {
   final List<Chord> chords = [];
   String? title, artist, style;
@@ -66,8 +132,7 @@ Song parseChordPro(String content) {
   }
 
   // 2. Parse chords: [Name] or [Name:beats]
-  final RegExp chordRegex = RegExp(r'\[([^\]:]+)(?::\s*([\d.]+))?\]');
-  final measures = content.replaceAll(directiveRegex, '').split('|');
+  final measures = expandRepeats(content.replaceAll(directiveRegex, ''));
 
   for (final measure in measures) {
     final matches = chordRegex.allMatches(measure).toList();
