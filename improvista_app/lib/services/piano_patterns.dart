@@ -75,14 +75,6 @@ List<int> _findBestVoicing(ParsedChord chord, int size, int transpose, List<int>
 // Comping rhythms. 1 = play, 0 = rest. 8-step patterns are 8th notes and get
 // spread onto the 16th grid; 16-step patterns are native 16ths.
 const Map<String, List<List<int>>> _compPatterns = {
-  'Medium Swing': [
-    [0, 0, 0, 1, 0, 0, 0, 1], // and-of-2, and-of-4
-    [1, 0, 0, 1, 0, 0, 0, 0], // Charleston: 1, and-of-2
-    [0, 1, 0, 0, 1, 0, 0, 0], // Reverse Charleston: and-of-1, 3
-    [0, 0, 0, 1, 0, 1, 0, 0], // and-of-2, and-of-3
-    [0, 0, 0, 1, 0, 0, 0, 0], // single push on and-of-2
-    [1, 0, 0, 0, 0, 0, 0, 0], // single hit on 1
-  ],
   'Bossa Nova': [
     [1, 0, 0, 1, 0, 0, 0, 0], // 1, and-of-2
     [1, 0, 1, 0, 0, 1, 0, 1], // 1, 2, and-of-3, and-of-4
@@ -108,40 +100,104 @@ const Map<String, List<List<int>>> _compPatterns = {
   ],
 };
 
+/// How likely a swing pianist comps on each 8th of the bar: 1 & 2 & 3 & 4 &.
+/// ponytail: by-ear guess; the shape (pushes on the &s, rarely 2 and 4) matters more than the numbers.
+const List<double> _swingHitOdds = [0.30, 0.25, 0.08, 0.45, 0.25, 0.20, 0.08, 0.35];
+
+/// A fresh swing comp for [slots] 8ths starting at 8th [offset] of the bar:
+/// 1-2 hits (1 under a full bar), never on neighbouring 8ths (also across the
+/// join, via [afterHit]), never the same as [previous].
+List<int> _swingComp(Random random, int slots, int offset, List<int>? previous, bool afterHit) {
+  final maxHits = slots < 8 ? 1 : 2; // 3 per bar was too busy
+  for (var attempt = 0; attempt < 200; attempt++) {
+    final comp = List.filled(slots, 0);
+    for (var i = 0; i < slots; i++) {
+      final blocked = i == 0 ? afterHit : comp[i - 1] == 1;
+      if (!blocked && random.nextDouble() < _swingHitOdds[(offset + i) % 8]) comp[i] = 1;
+    }
+    final hits = comp.where((h) => h == 1).length;
+    if (hits >= 1 && hits <= maxHits && comp.join() != previous?.join()) return comp;
+  }
+  return [1, ...List.filled(slots - 1, 0)]; // tiny chords with no other option
+}
+
 List<List<int>> generatePianoTrack(Song song) {
-  final List<List<int>> pianoTrack = [];
-  List<int> lastVoicing = [];
   final random = Random();
-  final transpose = song.transpose;
-  final patterns = _compPatterns[song.style] ?? _compPatterns['Medium Swing']!;
+  final patterns = _compPatterns[song.style]; // null: generated swing comping
   final voicingSize = _voicingSize[song.style] ?? 4;
-  int? lastPattern;
+  final chords = song.chords;
 
-  for (final chord in song.chords) {
-    final List<List<int>> chordSteps = List.generate(chord.steps, (_) => []);
+  // Voice-lead the whole song first, so a push can borrow the next chord's voicing.
+  final voicings = <List<int>?>[];
+  var lastVoicing = <int>[];
+  for (final chord in chords) {
     try {
-      final midiVoicing = _findBestVoicing(parseChord(chord.name), voicingSize, transpose, lastVoicing);
-      lastVoicing = midiVoicing;
-
-      // Never the same comp twice in a row.
-      var patternIndex = random.nextInt(patterns.length - (lastPattern == null ? 0 : 1));
-      if (lastPattern != null && patternIndex >= lastPattern) patternIndex++;
-      lastPattern = patterns.length > 1 ? patternIndex : null;
-      final pattern = patterns[patternIndex];
-      final int stepsPerSlot = (stepsPerBeat * 4) ~/ pattern.length; // 2 for 8ths, 1 for 16ths
-      for (var i = 0; i < chordSteps.length; i++) {
-        if (i % stepsPerSlot == 0 && pattern[(i ~/ stepsPerSlot) % pattern.length] == 1) {
-          chordSteps[i] = midiVoicing;
-        }
-      }
-      // Very short chords may fall between comp hits; always sound the change.
-      if (chordSteps.isNotEmpty && chordSteps.every((s) => s.isEmpty) && chord.duration < 1.0) {
-        chordSteps[0] = midiVoicing;
-      }
+      lastVoicing = _findBestVoicing(parseChord(chord.name), voicingSize, song.transpose, lastVoicing);
+      voicings.add(lastVoicing);
     } catch (e) {
       print('[Piano] ${chord.name}: $e');
+      voicings.add(null);
+    }
+  }
+
+  final List<List<int>> pianoTrack = [];
+  int? lastPattern;
+  List<int>? lastComp;
+  var anticipated = false; // the previous chord's last push already played this one
+  double beat = 0; // where this chord starts, in beats from the top
+
+  for (var c = 0; c < chords.length; c++) {
+    final chord = chords[c];
+    final voicing = voicings[c];
+    final List<List<int>> chordSteps = List.generate(chord.steps, (_) => []);
+    final wasAnticipated = anticipated;
+    anticipated = false;
+
+    if (voicing != null) {
+      final List<int> pattern;
+      if (patterns == null) {
+        // A new comp per bar the chord touches, weighted by where it sits in the bar.
+        pattern = [];
+        final firstSlot = (beat * 2).round();
+        final slots = (chord.steps + 1) ~/ 2;
+        while (pattern.length < slots) {
+          final offset = (firstSlot + pattern.length) % 8;
+          final afterHit = (pattern.isEmpty ? lastComp?.last : pattern.last) == 1;
+          final comp = _swingComp(random, min(8 - offset, slots - pattern.length), offset, lastComp, afterHit);
+          lastComp = comp;
+          pattern.addAll(comp);
+        }
+      } else {
+        // Never the same comp twice in a row.
+        var patternIndex = random.nextInt(patterns.length - (lastPattern == null ? 0 : 1));
+        if (lastPattern != null && patternIndex >= lastPattern) patternIndex++;
+        lastPattern = patterns.length > 1 ? patternIndex : null;
+        pattern = patterns[patternIndex];
+      }
+      final int stepsPerSlot = patterns == null ? 2 : (stepsPerBeat * 4) ~/ pattern.length; // 2 for 8ths, 1 for 16ths
+      for (var i = 0; i < chordSteps.length; i++) {
+        if (i % stepsPerSlot == 0 && pattern[(i ~/ stepsPerSlot) % pattern.length] == 1) {
+          chordSteps[i] = voicing;
+        }
+      }
+
+      // Swing: a push on the last & before a change plays the next chord early,
+      // as long as this chord has already sounded.
+      final last = (pattern.length - 1) * 2;
+      final next = c + 1 < chords.length ? voicings[c + 1] : null;
+      if (patterns == null && next != null && last > 0 && last < chordSteps.length && chordSteps[last].isNotEmpty &&
+          (wasAnticipated || chordSteps.sublist(0, last).any((s) => s.isNotEmpty))) {
+        chordSteps[last] = next;
+        anticipated = true;
+      }
+
+      // Very short chords may fall between comp hits; always sound the change.
+      if (chordSteps.isNotEmpty && chordSteps.every((s) => s.isEmpty) && chord.duration < 1.0 && !wasAnticipated) {
+        chordSteps[0] = voicing;
+      }
     }
     pianoTrack.addAll(chordSteps);
+    beat += chord.duration;
   }
   return pianoTrack;
 }

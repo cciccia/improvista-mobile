@@ -146,6 +146,25 @@ void main() {
     }
   });
 
+  test('swing pushes anticipate the next chord and leave the downbeat alone', () {
+    final song = parseChordPro('| [Dm7] [G7] | [Cmaj7] | [Am7] [D7] | [Gm7] [C7] |' * 16);
+    final piano = generatePianoTrack(song);
+    for (var s = 2; s < piano.length; s += 2) {
+      expect(piano[s - 2].isNotEmpty && piano[s].isNotEmpty, isFalse, reason: 'hits on neighbouring 8ths at step $s');
+    }
+    var start = 0;
+    for (var c = 0; c + 1 < song.chords.length; c++) {
+      final end = start + song.chords[c].steps;
+      // The next chord's own hits, minus its last-8th push (that one anticipates the chord after it).
+      final nextHits = piano.sublist(end, end + song.chords[c + 1].steps - 2).where((s) => s.isNotEmpty);
+      final soundedEarlier = piano.sublist(start, end - 2).any((s) => s.isNotEmpty);
+      if (soundedEarlier && piano[end - 2].isNotEmpty && nextHits.isNotEmpty) {
+        expect(piano[end - 2], nextHits.first, reason: 'push before ${song.chords[c + 1].name} plays it early');
+      }
+      start = end;
+    }
+  });
+
   test('voicings stay in the comping register', () {
     const chart = '| [Cmaj7] | [Ebm11] | [Ab7alt] | [Dbmaj7#11] | [Gm7b5] | [C7b9] | [Fm6] | [Bb13sus] |';
     for (final style in ['Medium Swing', 'Ballad']) {
