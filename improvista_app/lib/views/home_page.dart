@@ -341,14 +341,18 @@ class _HomePageState extends State<HomePage> {
                                 )
                               : null,
                           padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
-                          child: Text(
-                            chords[chordIdx].name,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                              color: isActive ? Colors.white : Colors.grey[300],
+                          // Shrink long names to fit instead of cutting them off.
+                          // ponytail: 4-chord bars on a phone get small; go to 2 bars/row on narrow screens if unreadable.
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              chords[chordIdx].name,
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                color: isActive ? Colors.white : Colors.grey[300],
+                              ),
                             ),
                           ),
                         ),
