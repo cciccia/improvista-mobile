@@ -193,16 +193,22 @@ class _HomePageState extends State<HomePage> {
   Future<void> _pickFile() async {
     if (!_isPlayerInitialized) return;
 
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['cho', 'txt'],
-    );
+    // Any file type: iOS greys out extensions it has no type for, like .cho.
+    FilePickerResult? result = await FilePicker.platform.pickFiles();
+    if (result == null) return;
 
-    if (result != null) {
-      final file = File(result.files.first.path!);
-      final content = await file.readAsString();
-      _loadSongFromContent(content);
+    final String content;
+    try {
+      content = await File(result.files.first.path!).readAsString();
+    } on FileSystemException catch (_) {
+      setState(() { _statusMessage = "Couldn't read '${result.files.first.name}' as text."; });
+      return;
     }
+    if (!chordRegex.hasMatch(content)) {
+      setState(() { _statusMessage = "No [chords] found in '${result.files.first.name}'."; });
+      return;
+    }
+    _loadSongFromContent(content);
   }
 
   Future<void> _pasteChordPro() async {
