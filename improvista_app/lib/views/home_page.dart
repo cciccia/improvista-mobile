@@ -35,6 +35,7 @@ class _HomePageState extends State<HomePage> {
   Song? _fullSong;
   SongSection? _section;
   double _tempo = 120.0;
+  int _transpose = 0;
   int? _currentChordIndex;
 
   @override
@@ -109,6 +110,7 @@ class _HomePageState extends State<HomePage> {
       _section = null;
       _loadedSong = song;
       _tempo = song.tempo;
+      _transpose = song.transpose;
       _statusMessage = "'${song.title}' loaded. Press Play to start.";
     });
   }
@@ -138,11 +140,33 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildTransposeDropdown() {
+    const keys = {0: 'C (concert)', -2: 'Bb', -9: 'Eb', -7: 'F'};
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('Transpose: ', style: TextStyle(fontSize: 16)),
+        DropdownButton<int>(
+          value: _transpose,
+          items: [
+            // A chart can give raw semitones ({transpose: 3}); keep it selectable.
+            if (!keys.containsKey(_transpose))
+              DropdownMenuItem(value: _transpose, child: Text('${_transpose > 0 ? '+' : ''}$_transpose semitones')),
+            for (final e in keys.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+          ],
+          onChanged: _isPlaying ? null : (value) {
+            setState(() { _transpose = value!; });
+          },
+        ),
+      ],
+    );
+  }
+
   void _playLoadedSong() {
     if (!_isPlayerInitialized || _isPlaying || _loadedSong == null) return;
 
     setState(() { _statusMessage = "Generating rhythm section..."; });
-    final RhythmSection rhythmSection = generateRhythmSection(_loadedSong!);
+    final RhythmSection rhythmSection = generateRhythmSection(_loadedSong!.withTranspose(_transpose));
 
     final countInBars = _isCountInEnabled ? 2 : 0;
 
@@ -466,6 +490,7 @@ class _HomePageState extends State<HomePage> {
                   },
                 ),
               ),
+              _buildTransposeDropdown(),
               const SizedBox(height: 8),
               // Play, Stop, and Repeat buttons
               Row(

@@ -35,6 +35,17 @@ class Song {
         chords: chords.sublist(s.start, s.end),
       );
 
+  Song withTranspose(int t) => Song(
+        title: title,
+        artist: artist,
+        style: style,
+        tempo: tempo,
+        timeSignature: timeSignature,
+        transpose: t,
+        chords: chords,
+        sections: sections,
+      );
+
   /// Total length in 16th-note steps. Every track must be exactly this long.
   int get totalSteps => chords.fold(0, (sum, chord) => sum + chord.steps);
 
