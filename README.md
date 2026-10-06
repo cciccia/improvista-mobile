@@ -2,7 +2,7 @@
 
 A jazz rhythm section in your pocket. Give Improvista a chord chart and it plays piano, bass and drums underneath you, so you can practise soloing over real changes at any tempo.
 
-Built with Flutter. It's developed and tested on iOS; the Android project is there but untested.
+Built with Flutter for iOS and Android.
 
 ## What it does
 
@@ -27,16 +27,18 @@ Built with Flutter. It's developed and tested on iOS; the Android project is the
 
 ## Running it
 
-You need [Flutter](https://docs.flutter.dev/get-started/install) (Dart SDK 3.9+) and, for iOS, Xcode.
+You need [Flutter](https://docs.flutter.dev/get-started/install) (Dart SDK 3.9+), plus Xcode for iOS or Android Studio for Android.
 
 ```sh
 cd improvista_app
 flutter pub get
-flutter run          # pick the iOS simulator or a connected iPhone
+flutter run          # pick a simulator/emulator or a connected phone
 flutter test         # parser, chord table, voicing and comping tests
 ```
 
 The soundfont (`assets/fluidr3_trio.sf2`) and three sample songs are bundled: Airegin, Blue Bossa and Body and Soul.
+
+For an Android release build, put your signing key details in `improvista_app/android/key.properties` (gitignored; see [Flutter's signing guide](https://docs.flutter.dev/deployment/android#signing-the-app)). Without it, release builds are signed with the debug key.
 
 ## Chart format
 

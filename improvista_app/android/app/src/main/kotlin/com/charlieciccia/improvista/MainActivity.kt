@@ -1,4 +1,4 @@
-package com.example.improvista_app
+package com.charlieciccia.improvista
 
 import io.flutter.embedding.android.FlutterActivity
 

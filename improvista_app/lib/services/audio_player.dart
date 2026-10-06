@@ -1,5 +1,6 @@
 // lib/services/audio_player.dart
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import '../models/chord.dart' show stepsPerBeat;
@@ -22,10 +23,14 @@ class AudioPlayer {
     const String melodicFont = 'assets/fluidr3_trio.sf2';
     // Brush kit; the only drum kit kept in the trimmed font (see CLAUDE.md > Soundfonts)
     const int drumKit = 40;
+    // Android plays through FluidSynth, much quieter at its default gain of 1.0 than the iOS sampler.
+    // Tuned by ear to match iOS; too high and loud passages clip.
+    const double androidGain = 3.0;
 
     print('[AudioPlayer] Loading soundfonts...');
     try {
       if (!_midi.isInitialized) await _midi.init();
+      if (Platform.isAndroid) await _midi.setMasterGain(androidGain);
       _bassSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 0, program: 32);
       _pianoSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 0, program: 0);
       _drumsSfId = await _midi.loadSoundfontAsset(assetPath: melodicFont, bank: 128, program: drumKit);
