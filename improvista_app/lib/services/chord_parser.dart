@@ -131,32 +131,51 @@ Song parseChordPro(String content) {
     }
   }
 
-  // 2. Parse chords: [Name] or [Name:beats]
-  final measures = expandRepeats(content.replaceAll(directiveRegex, ''));
+  // 2. Parse chords: [Name] or [Name:beats], per {section:} so each section
+  // knows its chord range after repeats unroll.
+  void addMeasures(String text) {
+    for (final measure in expandRepeats(text.replaceAll(directiveRegex, ''))) {
+      final matches = chordRegex.allMatches(measure).toList();
+      if (matches.isEmpty) continue;
 
-  for (final measure in measures) {
-    final matches = chordRegex.allMatches(measure).toList();
-    if (matches.isEmpty) continue;
+      final explicit = matches.map((m) => double.tryParse(m.group(2) ?? '')).toList();
+      final List<double> durations;
+      if (explicit.any((d) => d != null)) {
+        // Unspecified chords split whatever is left of the bar.
+        final used = explicit.whereType<double>().fold(0.0, (a, b) => a + b);
+        final missing = explicit.where((d) => d == null).length;
+        final share = missing == 0 ? 0.0 : ((4.0 - used) / missing).clamp(0.0, 4.0);
+        durations = explicit.map((d) => d ?? share).toList();
+      } else {
+        final defaults = _defaultDurations[matches.length];
+        if (defaults == null) continue; // >4 chords with no durations: ambiguous, skip
+        durations = defaults;
+      }
 
-    final explicit = matches.map((m) => double.tryParse(m.group(2) ?? '')).toList();
-    final List<double> durations;
-    if (explicit.any((d) => d != null)) {
-      // Unspecified chords split whatever is left of the bar.
-      final used = explicit.whereType<double>().fold(0.0, (a, b) => a + b);
-      final missing = explicit.where((d) => d == null).length;
-      final share = missing == 0 ? 0.0 : ((4.0 - used) / missing).clamp(0.0, 4.0);
-      durations = explicit.map((d) => d ?? share).toList();
-    } else {
-      final defaults = _defaultDurations[matches.length];
-      if (defaults == null) continue; // >4 chords with no durations: ambiguous, skip
-      durations = defaults;
-    }
-
-    for (var i = 0; i < matches.length; i++) {
-      if (durations[i] <= 0) continue;
-      chords.add(Chord(name: matches[i].group(1)!.trim(), duration: durations[i]));
+      for (var i = 0; i < matches.length; i++) {
+        if (durations[i] <= 0) continue;
+        chords.add(Chord(name: matches[i].group(1)!.trim(), duration: durations[i]));
+      }
     }
   }
+
+  final List<SongSection> sections = [];
+  String? sectionName;
+  var pos = 0;
+  void addChunk(String text) {
+    final start = chords.length;
+    addMeasures(text);
+    if (sectionName != null && chords.length > start) {
+      sections.add(SongSection(sectionName!, start, chords.length));
+    }
+  }
+
+  for (final m in RegExp(r'\{section:\s*(.*?)\}', caseSensitive: false).allMatches(content)) {
+    addChunk(content.substring(pos, m.start));
+    sectionName = m.group(1)!.trim();
+    pos = m.end;
+  }
+  addChunk(content.substring(pos));
 
   return Song(
     title: title,
@@ -166,5 +185,6 @@ Song parseChordPro(String content) {
     timeSignature: timeSignature,
     transpose: transpose,
     chords: chords,
+    sections: sections,
   );
 }

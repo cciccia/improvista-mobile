@@ -31,7 +31,9 @@ class _HomePageState extends State<HomePage> {
   bool _isPlaying = false;
   bool _isRepeatEnabled = false;
   bool _isCountInEnabled = true;
-  Song? _loadedSong;
+  Song? _loadedSong; // what plays: the whole song or one section of it
+  Song? _fullSong;
+  SongSection? _section;
   double _tempo = 120.0;
   int? _currentChordIndex;
 
@@ -103,10 +105,37 @@ class _HomePageState extends State<HomePage> {
     setState(() { _statusMessage = "Parsing file..."; });
     final Song song = parseChordPro(content);
     setState(() {
+      _fullSong = song;
+      _section = null;
       _loadedSong = song;
       _tempo = song.tempo;
       _statusMessage = "'${song.title}' loaded. Press Play to start.";
     });
+  }
+
+  void _selectSection(SongSection? section) {
+    setState(() {
+      _section = section;
+      _loadedSong = section == null ? _fullSong : _fullSong!.section(section);
+      _currentChordIndex = null;
+    });
+  }
+
+  Widget _buildSectionChips() {
+    ChoiceChip chip(String label, SongSection? section) => ChoiceChip(
+          label: Text(label),
+          selected: _section == section,
+          onSelected: _isPlaying ? null : (_) => _selectSection(section),
+        );
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      alignment: WrapAlignment.center,
+      children: [
+        chip('Whole chart', null),
+        ..._fullSong!.sections.map((s) => chip(s.name, s)),
+      ],
+    );
   }
 
   void _playLoadedSong() {
@@ -357,9 +386,9 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.blueGrey[900],
         title: const Text("Improvista"),
       ),
-      body: Center(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Sample songs section
             const Text('Sample Songs', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -395,6 +424,10 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 24),
             // Song controls (only shown when a song is loaded)
             if (_loadedSong != null) ...[
+              if (_fullSong!.sections.isNotEmpty) ...[
+                _buildSectionChips(),
+                const SizedBox(height: 8),
+              ],
               // Chord chart
               _buildChordChart(),
               const SizedBox(height: 16),

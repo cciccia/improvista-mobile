@@ -45,6 +45,7 @@ Songs use ChordPro format with these supported directives:
 {style: Medium Swing}     # Style: Medium Swing, Bossa Nova, Ballad, Rock Ballad, Fusion, Fusion Ballad
 {transpose: Bb}           # Instrument key: Bb, Eb, F, C, or semitones (-2, 3, etc.)
 {c: Comment}              # Comments (ignored during parsing)
+{section: Solo 1}         # Practice section: chips in the UI play just this part (until next {section:})
 
 | [Dm7] | [G7] | [Cmaj7] | [Cmaj7] |
 | [Am7] [D7] | [Gmaj7] |           # 2 chords = 2 beats each

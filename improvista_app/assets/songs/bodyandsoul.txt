@@ -3,12 +3,12 @@
 {tempo: 60}
 {time: 4/4}
 {style: Ballad}
-{c: A}
+{section: AA}
 |: [Eb-7] [Bb7b9] | [Eb-7] [Ab7] | [Dbmaj7] [Gb7] | [F-7] [E°7] |
 | [Eb-7] | [C-7b5] [F7] | [Bb-7] [Eb-7] [Ab7] |1 [Db6] [Bb7b9] :|2 [Db6] [E-7] [A7] ||
-{c: B}
+{section: Bridge}
 | [Dmaj7] [E-7] | [D/F#] [G-7] [C7] | [F#-7] [B-7] [E-7] [A7] | [Dmaj7] |
 | [D-7] [G7] | [Cmaj7] [Eb°7] | [D-7] [G7] | [C7:1] [B7:1] [Bb7:2] |
-{c: A3}
+{section: Last A}
 | [Eb-7] [Bb7b9] | [Eb-7] [Ab7] | [Dbmaj7] [Gb7] | [F-7] [E°7] |
 | [Eb-7] | [C-7b5] [F7] | [Bb-7] [Eb-7] [Ab7] | [Db6] [Bb7b9] |

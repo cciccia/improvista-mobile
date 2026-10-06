@@ -36,11 +36,24 @@ void main() {
     expect(play('| [Dm7:0.5] [G7:0.5] [Cmaj7:3] :|').length, 6, reason: 'durations keep their colons');
   });
 
+  test('sections split the chart into practice chunks', () {
+    final song = parseChordPro('| [X] |\n{section: Solo 1}\n|: [A] :|\n{c: note}\n{section: Solo 2}\n| [B] | [C] |');
+    expect(song.sections.map((s) => [s.name, s.start, s.end]), [
+      ['Solo 1', 1, 3],
+      ['Solo 2', 3, 5],
+    ]);
+    expect(song.section(song.sections[1]).chords.map((c) => c.name), ['B', 'C']);
+    expect(song.section(song.sections[0]).chords.map((c) => c.name), ['A', 'A'], reason: 'repeats unroll inside a section');
+    expect(parseChordPro('| [A] |').sections, isEmpty);
+  });
+
   test('Body and Soul unrolls to 32 bars', () {
     final song = parseChordPro(File('assets/songs/bodyandsoul.txt').readAsStringSync());
     expect(song.chords.fold<double>(0, (sum, c) => sum + c.duration), 32 * 4);
     expect(song.chords[14].name, 'Db6');
     expect(song.chords.sublist(14, 16).map((c) => c.name), ['Db6', 'Bb7b9'], reason: '1st ending');
+    expect(song.sections.map((s) => s.name), ['AA', 'Bridge', 'Last A']);
+    expect(song.section(song.sections[1]).chords.first.name, 'Dmaj7');
   });
 
   test('every track is exactly totalSteps long for every style', () {
