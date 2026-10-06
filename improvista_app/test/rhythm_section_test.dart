@@ -138,6 +138,14 @@ void main() {
     }
   });
 
+  test('the piano never plays the same comp rhythm twice in a row', () {
+    final piano = generatePianoTrack(parseChordPro('| [Dm7] | [G7] |' * 32));
+    String rhythm(int bar) => [for (var s = 0; s < 16; s++) piano[bar * 16 + s].isEmpty ? '.' : 'x'].join();
+    for (var bar = 1; bar < 64; bar++) {
+      expect(rhythm(bar), isNot(rhythm(bar - 1)), reason: 'bars $bar and ${bar + 1}');
+    }
+  });
+
   test('voicings stay in the comping register', () {
     const chart = '| [Cmaj7] | [Ebm11] | [Ab7alt] | [Dbmaj7#11] | [Gm7b5] | [C7b9] | [Fm6] | [Bb13sus] |';
     for (final style in ['Medium Swing', 'Ballad']) {

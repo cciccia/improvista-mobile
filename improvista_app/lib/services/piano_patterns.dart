@@ -76,9 +76,12 @@ List<int> _findBestVoicing(ParsedChord chord, int size, int transpose, List<int>
 // spread onto the 16th grid; 16-step patterns are native 16ths.
 const Map<String, List<List<int>>> _compPatterns = {
   'Medium Swing': [
-    [0, 0, 0, 1, 0, 0, 0, 1], // Classic: and-of-2, and-of-4
-    [0, 1, 0, 1, 0, 0, 0, 0], // Charleston: and-of-1, and-of-2
-    [0, 0, 0, 1, 0, 1, 0, 0], // Off-beats: and-of-2, and-of-3
+    [0, 0, 0, 1, 0, 0, 0, 1], // and-of-2, and-of-4
+    [1, 0, 0, 1, 0, 0, 0, 0], // Charleston: 1, and-of-2
+    [0, 1, 0, 0, 1, 0, 0, 0], // Reverse Charleston: and-of-1, 3
+    [0, 0, 0, 1, 0, 1, 0, 0], // and-of-2, and-of-3
+    [0, 0, 0, 1, 0, 0, 0, 0], // single push on and-of-2
+    [1, 0, 0, 0, 0, 0, 0, 0], // single hit on 1
   ],
   'Bossa Nova': [
     [1, 0, 0, 1, 0, 0, 0, 0], // 1, and-of-2
@@ -112,6 +115,7 @@ List<List<int>> generatePianoTrack(Song song) {
   final transpose = song.transpose;
   final patterns = _compPatterns[song.style] ?? _compPatterns['Medium Swing']!;
   final voicingSize = _voicingSize[song.style] ?? 4;
+  int? lastPattern;
 
   for (final chord in song.chords) {
     final List<List<int>> chordSteps = List.generate(chord.steps, (_) => []);
@@ -119,7 +123,11 @@ List<List<int>> generatePianoTrack(Song song) {
       final midiVoicing = _findBestVoicing(parseChord(chord.name), voicingSize, transpose, lastVoicing);
       lastVoicing = midiVoicing;
 
-      final pattern = patterns[random.nextInt(patterns.length)];
+      // Never the same comp twice in a row.
+      var patternIndex = random.nextInt(patterns.length - (lastPattern == null ? 0 : 1));
+      if (lastPattern != null && patternIndex >= lastPattern) patternIndex++;
+      lastPattern = patterns.length > 1 ? patternIndex : null;
+      final pattern = patterns[patternIndex];
       final int stepsPerSlot = (stepsPerBeat * 4) ~/ pattern.length; // 2 for 8ths, 1 for 16ths
       for (var i = 0; i < chordSteps.length; i++) {
         if (i % stepsPerSlot == 0 && pattern[(i ~/ stepsPerSlot) % pattern.length] == 1) {
